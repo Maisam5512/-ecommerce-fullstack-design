@@ -2,109 +2,196 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { cartAPI } from "@/lib/api"
+import { v4 as uuidv4 } from "uuid"
+import toast from "react-hot-toast"
 
 export interface CartItem {
-  id: string
-  name: string
-  price: number
+  _id: string
+  product: {
+    _id: string
+    name: string
+    price: number
+    image: string
+    stock: number
+  }
   quantity: number
-  size: string
-  color: string
-  material: string
-  seller: string
-  image: string
+  price: number
 }
 
 interface CartStore {
+  sessionId: string
   items: CartItem[]
-  couponCode: string
-  discount: number
-  addItem: (item: Omit<CartItem, "quantity"> & { quantity?: number }) => void
-  removeItem: (id: string) => void
-  updateQuantity: (id: string, quantity: number) => void
-  applyCoupon: (code: string) => void
-  clearCart: () => void
+  totalAmount: number
+  totalItems: number
+  isLoading: boolean
+
+  // Actions
+  initializeCart: () => Promise<void>
+  addItem: (productId: string, quantity?: number) => Promise<void>
+  removeItem: (productId: string) => Promise<void>
+  updateQuantity: (productId: string, quantity: number) => Promise<void>
+  clearCart: () => Promise<void>
+  getItemCount: () => number
   getSubtotal: () => number
   getTax: () => number
   getTotal: () => number
-  getItemCount: () => number
 }
 
 export const useCart = create<CartStore>()(
   persist(
     (set, get) => ({
+      sessionId: "",
       items: [],
-      couponCode: "",
-      discount: 0,
+      totalAmount: 0,
+      totalItems: 0,
+      isLoading: false,
 
-      addItem: (item) => {
-        const items = get().items
-        const existingItem = items.find((i) => i.id === item.id)
+      initializeCart: async () => {
+        try {
+          let { sessionId } = get()
 
-        if (existingItem) {
-          set({
-            items: items.map((i) => (i.id === item.id ? { ...i, quantity: i.quantity + (item.quantity || 1) } : i)),
-          })
-        } else {
-          set({
-            items: [...items, { ...item, quantity: item.quantity || 1 }],
-          })
+          // Generate session ID if not exists
+          if (!sessionId) {
+            sessionId = uuidv4()
+            set({ sessionId })
+          }
+
+          set({ isLoading: true })
+          const response = await cartAPI.getCart(sessionId)
+
+          if (response.success) {
+            set({
+              items: response.data.items || [],
+              totalAmount: response.data.totalAmount || 0,
+              totalItems: response.data.totalItems || 0,
+            })
+          }
+        } catch (error) {
+          console.error("Error initializing cart:", error)
+          toast.error("Failed to load cart")
+        } finally {
+          set({ isLoading: false })
         }
       },
 
-      removeItem: (id) => {
-        set({
-          items: get().items.filter((item) => item.id !== id),
-        })
-      },
+      addItem: async (productId: string, quantity = 1) => {
+        try {
+          const { sessionId } = get()
+          set({ isLoading: true })
 
-      updateQuantity: (id, quantity) => {
-        if (quantity <= 0) {
-          get().removeItem(id)
-          return
+          const response = await cartAPI.addToCart(sessionId, productId, quantity)
+
+          if (response.success) {
+            set({
+              items: response.data.items,
+              totalAmount: response.data.totalAmount,
+              totalItems: response.data.totalItems,
+            })
+            toast.success("Item added to cart")
+          }
+        } catch (error: any) {
+          console.error("Error adding to cart:", error)
+          toast.error(error.response?.data?.message || "Failed to add item to cart")
+        } finally {
+          set({ isLoading: false })
         }
-
-        set({
-          items: get().items.map((item) => (item.id === id ? { ...item, quantity } : item)),
-        })
       },
 
-      applyCoupon: (code) => {
-        let discount = 0
-        if (code === "SAVE60") {
-          discount = 60
-        } else if (code === "SAVE10") {
-          discount = 10
+      removeItem: async (productId: string) => {
+        try {
+          const { sessionId } = get()
+          set({ isLoading: true })
+
+          const response = await cartAPI.removeFromCart(sessionId, productId)
+
+          if (response.success) {
+            set({
+              items: response.data.items,
+              totalAmount: response.data.totalAmount,
+              totalItems: response.data.totalItems,
+            })
+            toast.success("Item removed from cart")
+          }
+        } catch (error: any) {
+          console.error("Error removing from cart:", error)
+          toast.error(error.response?.data?.message || "Failed to remove item")
+        } finally {
+          set({ isLoading: false })
         }
-
-        set({ couponCode: code, discount })
       },
 
-      clearCart: () => {
-        set({ items: [], couponCode: "", discount: 0 })
+      updateQuantity: async (productId: string, quantity: number) => {
+        try {
+          const { sessionId } = get()
+          set({ isLoading: true })
+
+          const response = await cartAPI.updateCartItem(sessionId, productId, quantity)
+
+          if (response.success) {
+            set({
+              items: response.data.items,
+              totalAmount: response.data.totalAmount,
+              totalItems: response.data.totalItems,
+            })
+          }
+        } catch (error: any) {
+          console.error("Error updating cart:", error)
+          toast.error(error.response?.data?.message || "Failed to update quantity")
+        } finally {
+          set({ isLoading: false })
+        }
+      },
+
+      clearCart: async () => {
+        try {
+          const { sessionId } = get()
+          set({ isLoading: true })
+
+          const response = await cartAPI.clearCart(sessionId)
+
+          if (response.success) {
+            set({
+              items: [],
+              totalAmount: 0,
+              totalItems: 0,
+            })
+            toast.success("Cart cleared")
+          }
+        } catch (error: any) {
+          console.error("Error clearing cart:", error)
+          toast.error(error.response?.data?.message || "Failed to clear cart")
+        } finally {
+          set({ isLoading: false })
+        }
+      },
+
+      getItemCount: () => {
+        return get().totalItems
       },
 
       getSubtotal: () => {
-        return get().items.reduce((total, item) => total + item.price * item.quantity, 0)
+        return get().totalAmount
       },
 
       getTax: () => {
-        return get().getSubtotal() * 0.01 // 1% tax
+        return get().totalAmount * 0.01 // 1% tax
       },
 
       getTotal: () => {
         const subtotal = get().getSubtotal()
         const tax = get().getTax()
-        const discount = get().discount
-        return subtotal + tax - discount
-      },
-
-      getItemCount: () => {
-        return get().items.reduce((total, item) => total + item.quantity, 0)
+        return subtotal + tax
       },
     }),
     {
       name: "cart-storage",
+      partialize: (state) => ({
+        sessionId: state.sessionId,
+        items: state.items,
+        totalAmount: state.totalAmount,
+        totalItems: state.totalItems,
+      }),
     },
   ),
 )

@@ -1,96 +1,129 @@
-import { ChevronRight, Grid3X3, List, ChevronLeft, ChevronUp } from "lucide-react"
+"use client"
+
+import { useState, useEffect } from "react"
+import { ChevronRight, ChevronLeft, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import ProductCard from "@/components/product-card"
+import ProductCardWithCart from "@/components/product-card-with-cart"
+import { productAPI } from "@/lib/api"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function ProductListingContent() {
-  const products = [
-    {
-      id: 1,
-      name: "Canon Cmera EOS 2000, Black 10x zoom",
-      price: "$998.00",
-      originalPrice: "$1128.00",
-      rating: 7.5,
-      orders: 154,
-      image: "/images/tech/1.jpg",
-      description:
-        "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua",
-    },
-    {
-      id: 2,
-      name: "GoPro HERO6 4K Action Camera - Black",
-      price: "$998.00",
-      rating: 7.5,
-      orders: 154,
-      image: "/images/tech/3.jpg",
-      description:
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit",
-    },
-    {
-      id: 3,
-      name: "GoPro HERO6 4K Action Camera - Black",
-      price: "$998.00",
-      rating: 7.5,
-      orders: 154,
-      image: "/images/tech/2.jpg",
-      description:
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit",
-    },
-    {
-      id: 4,
-      name: "GoPro HERO6 4K Action Camera - Black",
-      price: "$998.00",
-      originalPrice: "$1128.00",
-      rating: 7.5,
-      orders: 154,
-      image: "/images/tech/7.jpg",
-      description:
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit",
-    },
-    {
-      id: 5,
-      name: "GoPro HERO6 4K Action Camera - Black",
-      price: "$998.00",
-      rating: 7.5,
-      orders: 154,
-      image: "/images/tech/8.jpg",
-      description:
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit",
-    },
-    {
-      id: 6,
-      name: "GoPro HERO6 4K Action Camera - Black",
-      price: "$998.00",
-      rating: 7.5,
-      orders: 154,
-      image: "/images/tech/9.jpg",
-      description:
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit",
-    },
-    {
-      id: 7,
-      name: "GoPro HERO6 4K Action Camera - Black",
-      price: "$998.00",
-      rating: 7.5,
-      orders: 154,
-      image: "/images/tech/4.jpg",
-      description:
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit",
-    },
-    {
-      id: 8,
-      name: "GoPro HERO6 4K Action Camera - Black",
-      price: "$998.00",
-      rating: 7.5,
-      orders: 154,
-      image: "/images/tech/6.jpg",
-      description:
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit",
-    },
-  ]
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [categories, setCategories] = useState([])
+  const [filters, setFilters] = useState({
+    category: "",
+    minPrice: "",
+    maxPrice: "",
+    search: "",
+    sort: "createdAt",
+    order: "desc",
+    page: 1,
+    limit: 12,
+  })
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalProducts: 0,
+  })
+
+  useEffect(() => {
+    fetchProducts()
+    fetchCategories()
+  }, [filters])
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true)
+
+      // Prepare params for API call
+      const params: any = {
+        page: filters.page,
+        limit: filters.limit,
+        sort: filters.sort,
+        order: filters.order,
+      }
+
+      // Only add filters if they have values
+      if (filters.category) params.category = filters.category
+      if (filters.search) params.search = filters.search
+      if (filters.minPrice) params.minPrice = Number(filters.minPrice)
+      if (filters.maxPrice) params.maxPrice = Number(filters.maxPrice)
+
+      const response = await productAPI.getProducts(params)
+
+      if (response.success) {
+        setProducts(response.data)
+        setPagination(
+          response.pagination || {
+            currentPage: 1,
+            totalPages: 1,
+            totalProducts: response.data.length,
+          },
+        )
+      }
+    } catch (error) {
+      console.error("Error fetching products:", error)
+      setProducts([])
+      setPagination({
+        currentPage: 1,
+        totalPages: 1,
+        totalProducts: 0,
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchCategories = async () => {
+    try {
+      const response = await productAPI.getCategories()
+      if (response.success) {
+        setCategories(response.data)
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error)
+      setCategories([])
+    }
+  }
+
+  const handleFilterChange = (key: string, value: any) => {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+      page: 1, // Reset to first page when filters change
+    }))
+  }
+
+  const handlePriceFilter = () => {
+    fetchProducts()
+  }
+
+  const handlePageChange = (page: number) => {
+    setFilters((prev) => ({ ...prev, page }))
+  }
+
+  if (loading && products.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid lg:grid-cols-4 gap-8">
+          <div className="lg:col-span-1">
+            <Skeleton className="h-96 w-full" />
+          </div>
+          <div className="lg:col-span-3">
+            <div className="grid gap-6">
+              {[...Array(6)].map((_, index) => (
+                <Skeleton key={index} className="h-48 w-full" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -98,11 +131,13 @@ export default function ProductListingContent() {
       <div className="flex items-center space-x-2 text-sm text-gray-500 mb-6">
         <span>Home</span>
         <ChevronRight className="w-4 h-4" />
-        <span>Clothings</span>
-        <ChevronRight className="w-4 h-4" />
-        <span>Men's wear</span>
-        <ChevronRight className="w-4 h-4" />
-        <span className="text-gray-800">Summer clothing</span>
+        <span>Products</span>
+        {filters.category && (
+          <>
+            <ChevronRight className="w-4 h-4" />
+            <span className="text-gray-800">{filters.category}</span>
+          </>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-4 gap-8">
@@ -116,99 +151,21 @@ export default function ProductListingContent() {
                 <ChevronUp className="w-4 h-4" />
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-4 space-y-3">
-                <div className="text-sm text-gray-700 hover:text-blue-600 cursor-pointer">Mobile accessory</div>
-                <div className="text-sm text-gray-700 hover:text-blue-600 cursor-pointer">Electronics</div>
-                <div className="text-sm text-gray-700 hover:text-blue-600 cursor-pointer">Smartphones</div>
-                <div className="text-sm text-gray-700 hover:text-blue-600 cursor-pointer">Modern tech</div>
-                <Button variant="link" className="text-blue-600 p-0 h-auto text-sm">
-                  See all
-                </Button>
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Brands */}
-            <Collapsible defaultOpen>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-0 text-left">
-                <h3 className="text-lg font-semibold text-gray-800">Brands</h3>
-                <ChevronUp className="w-4 h-4" />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-4 space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="samsung" />
-                  <label htmlFor="samsung" className="text-sm text-gray-700">
-                    Samsung
-                  </label>
+                <div
+                  className={`text-sm cursor-pointer hover:text-blue-600 ${!filters.category ? "text-blue-600 font-medium" : "text-gray-700"}`}
+                  onClick={() => handleFilterChange("category", "")}
+                >
+                  All Categories
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="apple" />
-                  <label htmlFor="apple" className="text-sm text-gray-700">
-                    Apple
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="huawei" />
-                  <label htmlFor="huawei" className="text-sm text-gray-700">
-                    Huawei
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="pocco" />
-                  <label htmlFor="pocco" className="text-sm text-gray-700">
-                    Pocco
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="lenovo" />
-                  <label htmlFor="lenovo" className="text-sm text-gray-700">
-                    Lenovo
-                  </label>
-                </div>
-                <Button variant="link" className="text-blue-600 p-0 h-auto text-sm">
-                  See all
-                </Button>
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Features */}
-            <Collapsible defaultOpen>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-0 text-left">
-                <h3 className="text-lg font-semibold text-gray-800">Features</h3>
-                <ChevronUp className="w-4 h-4" />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-4 space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="metallic" />
-                  <label htmlFor="metallic" className="text-sm text-gray-700">
-                    Metallic
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="plastic" />
-                  <label htmlFor="plastic" className="text-sm text-gray-700">
-                    Plastic cover
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="8gb" />
-                  <label htmlFor="8gb" className="text-sm text-gray-700">
-                    8GB Ram
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="superpower" />
-                  <label htmlFor="superpower" className="text-sm text-gray-700">
-                    Super power
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="largememory" />
-                  <label htmlFor="largememory" className="text-sm text-gray-700">
-                    Large Memory
-                  </label>
-                </div>
-                <Button variant="link" className="text-blue-600 p-0 h-auto text-sm">
-                  See all
-                </Button>
+                {categories.map((category: string) => (
+                  <div
+                    key={category}
+                    className={`text-sm cursor-pointer hover:text-blue-600 ${filters.category === category ? "text-blue-600 font-medium" : "text-gray-700"}`}
+                    onClick={() => handleFilterChange("category", category)}
+                  >
+                    {category}
+                  </div>
+                ))}
               </CollapsibleContent>
             </Collapsible>
 
@@ -220,100 +177,31 @@ export default function ProductListingContent() {
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-4">
                 <div className="space-y-4">
-                  <div className="relative">
-                    <div className="h-2 bg-gray-200 rounded-full">
-                      <div className="h-2 bg-blue-500 rounded-full" style={{ width: "30%" }}></div>
-                    </div>
-                    <div className="absolute left-0 top-0 w-4 h-4 bg-blue-500 rounded-full -mt-1"></div>
-                    <div className="absolute right-0 top-0 w-4 h-4 bg-gray-300 rounded-full -mt-1"></div>
-                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm text-gray-600">Min</label>
-                      <Input placeholder="0" className="mt-1" />
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        className="mt-1"
+                        value={filters.minPrice}
+                        onChange={(e) => handleFilterChange("minPrice", e.target.value)}
+                      />
                     </div>
                     <div>
                       <label className="text-sm text-gray-600">Max</label>
-                      <Input placeholder="999999" className="mt-1" />
+                      <Input
+                        type="number"
+                        placeholder="999999"
+                        className="mt-1"
+                        value={filters.maxPrice}
+                        onChange={(e) => handleFilterChange("maxPrice", e.target.value)}
+                      />
                     </div>
                   </div>
-                  <Button className="w-full bg-blue-500 hover:bg-blue-600">Apply</Button>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Condition */}
-            <Collapsible defaultOpen>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-0 text-left">
-                <h3 className="text-lg font-semibold text-gray-800">Condition</h3>
-                <ChevronUp className="w-4 h-4" />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-4 space-y-3">
-                <div className="flex items-center space-x-2">
-                  <input type="radio" id="any" name="condition" defaultChecked className="text-blue-600" />
-                  <label htmlFor="any" className="text-sm text-gray-700">
-                    Any
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input type="radio" id="refurbished" name="condition" />
-                  <label htmlFor="refurbished" className="text-sm text-gray-700">
-                    Refurbished
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input type="radio" id="brandnew" name="condition" />
-                  <label htmlFor="brandnew" className="text-sm text-gray-700">
-                    Brand new
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input type="radio" id="olditems" name="condition" />
-                  <label htmlFor="olditems" className="text-sm text-gray-700">
-                    Old items
-                  </label>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Ratings */}
-            <Collapsible defaultOpen>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-0 text-left">
-                <h3 className="text-lg font-semibold text-gray-800">Ratings</h3>
-                <ChevronUp className="w-4 h-4" />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-4 space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="5star" />
-                  <div className="flex text-orange-400">
-                    {"★★★★★".split("").map((star, i) => (
-                      <span key={i}>{star}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="4star" />
-                  <div className="flex text-orange-400">
-                    {"★★★★☆".split("").map((star, i) => (
-                      <span key={i}>{star}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="3star" />
-                  <div className="flex text-orange-400">
-                    {"★★★☆☆".split("").map((star, i) => (
-                      <span key={i}>{star}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="2star" />
-                  <div className="flex text-orange-400">
-                    {"★★☆☆☆".split("").map((star, i) => (
-                      <span key={i}>{star}</span>
-                    ))}
-                  </div>
+                  <Button className="w-full bg-blue-500 hover:bg-blue-600" onClick={handlePriceFilter}>
+                    Apply
+                  </Button>
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -326,76 +214,132 @@ export default function ProductListingContent() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
               <span className="text-gray-700">
-                12,911 items in <strong>Mobile accessory</strong>
+                {pagination.totalProducts} items found
+                {filters.category && (
+                  <span>
+                    {" "}
+                    in <strong>{filters.category}</strong>
+                  </span>
+                )}
               </span>
-              <div className="flex items-center space-x-2">
-                <Checkbox id="verified" defaultChecked />
-                <label htmlFor="verified" className="text-sm text-gray-700">
-                  Verified only
-                </label>
-              </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Select defaultValue="featured">
-                <SelectTrigger className="w-32">
+              <Select
+                value={`${filters.sort}-${filters.order}`}
+                onValueChange={(value) => {
+                  const [sort, order] = value.split("-")
+                  handleFilterChange("sort", sort)
+                  handleFilterChange("order", order)
+                }}
+              >
+                <SelectTrigger className="w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="featured">Featured</SelectItem>
-                  <SelectItem value="price-low">Price: Low to High</SelectItem>
-                  <SelectItem value="price-high">Price: High to Low</SelectItem>
-                  <SelectItem value="newest">Newest</SelectItem>
+                  <SelectItem value="createdAt-desc">Newest First</SelectItem>
+                  <SelectItem value="createdAt-asc">Oldest First</SelectItem>
+                  <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                  <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                  <SelectItem value="name-asc">Name: A to Z</SelectItem>
+                  <SelectItem value="name-desc">Name: Z to A</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="flex border rounded">
-                <Button variant="ghost" size="sm" className="p-2">
-                  <Grid3X3 className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="p-2">
-                  <List className="w-4 h-4" />
-                </Button>
-              </div>
             </div>
           </div>
 
           {/* Products Grid */}
-          <div className="grid gap-6">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between mt-8">
-            <Select defaultValue="10">
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">Show 10</SelectItem>
-                <SelectItem value="20">Show 20</SelectItem>
-                <SelectItem value="50">Show 50</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm">
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="bg-blue-500 text-white">
-                1
-              </Button>
-              <Button variant="outline" size="sm">
-                2
-              </Button>
-              <Button variant="outline" size="sm">
-                3
-              </Button>
-              <Button variant="outline" size="sm">
-                <ChevronRight className="w-4 h-4" />
+          {loading ? (
+            <div className="grid gap-6">
+              {[...Array(6)].map((_, index) => (
+                <Skeleton key={index} className="h-48 w-full" />
+              ))}
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-6xl mb-4">📦</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">No products found</h2>
+              <p className="text-gray-600 mb-6">Try adjusting your filters or search terms</p>
+              <Button
+                onClick={() =>
+                  setFilters({
+                    category: "",
+                    minPrice: "",
+                    maxPrice: "",
+                    search: "",
+                    sort: "createdAt",
+                    order: "desc",
+                    page: 1,
+                    limit: 12,
+                  })
+                }
+                className="bg-blue-500 hover:bg-blue-600"
+              >
+                Clear Filters
               </Button>
             </div>
-          </div>
+          ) : (
+            <div className="grid gap-6">
+              {products.map((product: any) => (
+                <ProductCardWithCart key={product._id} product={product} variant="list" />
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-8">
+              <Select
+                value={filters.limit.toString()}
+                onValueChange={(value) => handleFilterChange("limit", Number(value))}
+              >
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="12">Show 12</SelectItem>
+                  <SelectItem value="24">Show 24</SelectItem>
+                  <SelectItem value="48">Show 48</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  disabled={pagination.currentPage <= 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+
+                {[...Array(Math.min(5, pagination.totalPages))].map((_, index) => {
+                  const pageNumber = index + 1
+                  const isActive = pageNumber === pagination.currentPage
+
+                  return (
+                    <Button
+                      key={pageNumber}
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNumber)}
+                      className={isActive ? "bg-blue-500 text-white" : ""}
+                    >
+                      {pageNumber}
+                    </Button>
+                  )
+                })}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  disabled={pagination.currentPage >= pagination.totalPages}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -8,24 +8,19 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import Image from "next/image"
 import Link from "next/link"
 import { useCart } from "@/hooks/use-cart"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export default function CartContent() {
-  const {
-    items,
-    removeItem,
-    updateQuantity,
-    applyCoupon,
-    couponCode,
-    discount,
-    getSubtotal,
-    getTax,
-    getTotal,
-    getItemCount,
-  } = useCart()
+  const { items, removeItem, updateQuantity, clearCart, totalAmount, totalItems, isLoading, initializeCart } = useCart()
 
   const [couponInput, setCouponInput] = useState("")
+  const [discount, setDiscount] = useState(0)
   const [savedItems, setSavedItems] = useState<string[]>([])
+
+  // Initialize cart on component mount
+  useEffect(() => {
+    initializeCart()
+  }, [initializeCart])
 
   const handleSaveForLater = (itemId: string) => {
     setSavedItems([...savedItems, itemId])
@@ -33,13 +28,29 @@ export default function CartContent() {
   }
 
   const handleApplyCoupon = () => {
-    applyCoupon(couponInput)
+    if (couponInput === "SAVE60") {
+      setDiscount(60)
+    } else if (couponInput === "SAVE10") {
+      setDiscount(10)
+    } else {
+      setDiscount(0)
+    }
   }
 
-  const subtotal = getSubtotal()
-  const tax = getTax()
-  const total = getTotal()
-  const itemCount = getItemCount()
+  const subtotal = totalAmount
+  const tax = totalAmount * 0.01
+  const total = subtotal + tax - discount
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center py-16">
+          <div className="text-6xl mb-4">🔄</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading your cart...</h2>
+        </div>
+      </div>
+    )
+  }
 
   if (items.length === 0) {
     return (
@@ -70,20 +81,20 @@ export default function CartContent() {
 
       {/* Desktop Header */}
       <div className="hidden lg:block mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">My cart ({itemCount})</h1>
+        <h1 className="text-3xl font-bold text-gray-800">My cart ({totalItems})</h1>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Cart Items */}
         <div className="lg:col-span-2 space-y-4">
           {items.map((item) => (
-            <div key={item.id} className="bg-white rounded-lg p-4 lg:p-6">
+            <div key={item._id} className="bg-white rounded-lg p-4 lg:p-6">
               <div className="flex items-start space-x-4">
                 {/* Product Image */}
                 <div className="w-16 h-16 lg:w-20 lg:h-20 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Image
-                    src={item.image || "/placeholder.svg"}
-                    alt={item.name}
+                    src={item.product.image || "/placeholder.svg"}
+                    alt={item.product.name}
                     width={60}
                     height={60}
                     className="object-contain"
@@ -92,12 +103,10 @@ export default function CartContent() {
 
                 {/* Product Details */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-800 mb-2 line-clamp-2">{item.name}</h3>
+                  <h3 className="font-semibold text-gray-800 mb-2 line-clamp-2">{item.product.name}</h3>
                   <div className="text-sm text-gray-500 space-y-1">
-                    <div>
-                      Size: {item.size}, Color: {item.color}, Material: {item.material}
-                    </div>
-                    <div>Seller: {item.seller}</div>
+                    <div>Price: ${item.product.price.toFixed(2)}</div>
+                    <div>Stock: {item.product.stock} available</div>
                   </div>
 
                   {/* Mobile Actions */}
@@ -106,8 +115,9 @@ export default function CartContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.product._id, item.quantity - 1)}
                         className="w-8 h-8 p-0"
+                        disabled={isLoading}
                       >
                         <Minus className="w-4 h-4" />
                       </Button>
@@ -115,13 +125,16 @@ export default function CartContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.product._id, item.quantity + 1)}
                         className="w-8 h-8 p-0"
+                        disabled={isLoading}
                       >
                         <Plus className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="text-lg font-bold text-gray-800">${item.price.toFixed(2)}</div>
+                    <div className="text-lg font-bold text-gray-800">
+                      ${(item.product.price * item.quantity).toFixed(2)}
+                    </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="p-2">
@@ -129,8 +142,10 @@ export default function CartContent() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleSaveForLater(item.id)}>Save for later</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => removeItem(item.id)} className="text-red-600">
+                        <DropdownMenuItem onClick={() => handleSaveForLater(item.product._id)}>
+                          Save for later
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => removeItem(item.product._id)} className="text-red-600">
                           Remove
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -142,14 +157,15 @@ export default function CartContent() {
                     <Button
                       variant="link"
                       className="text-red-500 hover:text-red-600 p-0 h-auto"
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => removeItem(item.product._id)}
+                      disabled={isLoading}
                     >
                       Remove
                     </Button>
                     <Button
                       variant="link"
                       className="text-blue-500 hover:text-blue-600 p-0 h-auto"
-                      onClick={() => handleSaveForLater(item.id)}
+                      onClick={() => handleSaveForLater(item.product._id)}
                     >
                       Save for later
                     </Button>
@@ -158,16 +174,19 @@ export default function CartContent() {
 
                 {/* Desktop Price and Quantity */}
                 <div className="hidden lg:flex items-center space-x-6">
-                  <div className="text-2xl font-bold text-gray-800">${item.price.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-gray-800">
+                    ${(item.product.price * item.quantity).toFixed(2)}
+                  </div>
                   <Select
                     value={item.quantity.toString()}
-                    onValueChange={(value) => updateQuantity(item.id, Number.parseInt(value))}
+                    onValueChange={(value) => updateQuantity(item.product._id, Number.parseInt(value))}
+                    disabled={isLoading}
                   >
                     <SelectTrigger className="w-20">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[...Array(10)].map((_, i) => (
+                      {[...Array(Math.min(10, item.product.stock))].map((_, i) => (
                         <SelectItem key={i + 1} value={(i + 1).toString()}>
                           {i + 1}
                         </SelectItem>
@@ -229,7 +248,7 @@ export default function CartContent() {
             {/* Mobile Summary */}
             <div className="lg:hidden mt-6 pt-6 border-t">
               <div className="flex justify-between text-sm mb-2">
-                <span>Items ({itemCount}):</span>
+                <span>Items ({totalItems}):</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
@@ -239,15 +258,22 @@ export default function CartContent() {
             </div>
 
             {/* Checkout Button */}
-            <Button className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white py-3">Checkout</Button>
+            <Button className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white py-3" disabled={isLoading}>
+              {isLoading ? "Processing..." : "Checkout"}
+            </Button>
+
+            {/* Clear Cart Button */}
+            <Button variant="outline" className="w-full mt-2 bg-transparent" onClick={clearCart} disabled={isLoading}>
+              Clear Cart
+            </Button>
 
             {/* Payment Methods */}
             <div className="hidden lg:flex items-center justify-center space-x-2 mt-4">
-              <Image src="/placeholder.svg?height=24&width=40&text=💳" alt="American Express" width={40} height={24} />
-              <Image src="/placeholder.svg?height=24&width=40&text=💳" alt="Mastercard" width={40} height={24} />
-              <Image src="/placeholder.svg?height=24&width=40&text=💳" alt="PayPal" width={40} height={24} />
-              <Image src="/placeholder.svg?height=24&width=40&text=💳" alt="Visa" width={40} height={24} />
-              <Image src="/placeholder.svg?height=24&width=40&text=💳" alt="Apple Pay" width={40} height={24} />
+              <Image src="/images/payment/America.png" alt="American Express" width={40} height={24} />
+              <Image src="/images/payment/Master.png" alt="Mastercard" width={40} height={24} />
+              <Image src="/images/payment/PayPal.png" alt="PayPal" width={40} height={24} />
+              <Image src="/images/payment/visa.png" alt="Visa" width={40} height={24} />
+              <Image src="/images/payment/App.png" alt="Apple Pay" width={40} height={24} />
             </div>
           </div>
         </div>
